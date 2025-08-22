@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import PyPDF2
 import os
+import re
 from docx import Document
 from urllib.parse import urlparse
 from youtube_transcript_api._api import YouTubeTranscriptApi
@@ -32,6 +33,12 @@ def get_seo_keywords(title):
     # For this example, we'll generate some dummy keywords.
     keywords = [word.lower() for word in title.split()[:5]]
     return keywords
+
+def extract_video_id_from_url(url):
+    """Extracts the YouTube video ID from a URL."""
+    regex = r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]*\/|v\/|embed\/|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
+    match = re.search(regex, url)
+    return match.group(1) if match else None
 
 def rewrite_summary_with_seo(summary, keywords):
     """Rewrites a summary to include SEO keywords using an LLM."""
@@ -75,7 +82,7 @@ def save_as_word_doc(data, output_filename):
 
 def get_content_type(url):
     """Checks if a URL points to a PDF, a web page, or a YouTube video."""
-    if "youtube.com/watch" in url or "youtu.be/" in url:
+    if extract_video_id_from_url(url):
         return 'youtube'
     if url.lower().endswith('.pdf'):
         return 'pdf'
@@ -111,14 +118,14 @@ def extract_html_content(url):
 def extract_youtube_content(url):
     """Fetches the transcript and title from a YouTube video."""
     try:
-        video_id = url.split("v=")[1].split("&")[0] # Simple way to get video ID
-
-        # Instantiate the API
-        api = YouTubeTranscriptApi()
+        video_id = extract_video_id_from_url(url)
+        if not video_id:
+            return None, None, "Invalid YouTube URL"
 
         # Get transcript
-        transcript_list = api.list(video_id).find_transcript(['en']).fetch()
-        transcript_text = " ".join([item.text for item in transcript_list.snippets])
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript = transcript_list.find_transcript(['en'])
+        transcript_text = " ".join([item['text'] for item in transcript.fetch()])
 
         # Scrape title from YouTube page
         response = requests.get(url, timeout=15)
@@ -296,6 +303,7 @@ def process_urls(urls):
 if __name__ == "__main__":
     # Placeholder list of URLs for testing
     sample_urls = [
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         "https://blog.google/technology/ai/google-gemini-ai/",
         "https://www.deeplearning.ai/the-batch/a-new-study-finds-that-llms-can-be-persuaded-to-give-up-private-data/",
         "https://arxiv.org/pdf/2305.15334.pdf" # Example PDF URL

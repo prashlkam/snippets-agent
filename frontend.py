@@ -1,9 +1,8 @@
-
 import sys
 import os
 import time
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import (
+from PyQt6.QtWidgets (
     QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QTextEdit, QPushButton, QProgressBar, QTextBrowser, QMessageBox
 )
@@ -15,6 +14,7 @@ from bs4 import BeautifulSoup
 import PyPDF2
 from docx import Document
 from urllib.parse import urlparse
+from youtube_transcript_api import YouTubeTranscriptApi
 
 import google.generativeai as genai
 
@@ -143,6 +143,18 @@ class AgentWorker(QThread):
                     self.log_update.emit(f"-> PDF downloaded to: {filepath}")
                     pdf_files_to_process.append((url_data, filepath))
                     url_data["status"] = "Downloaded"
+            elif content_type == 'youtube':
+                self.log_update.emit("-> Type: YouTube Video")
+                title, content, error = self.extract_youtube_content(url)
+                if error:
+                    url_data["status"] = "Error"
+                    url_data["error_message"] = error
+                    self.log_update.emit(f"-> Error: {error}")
+                else:
+                    url_data["title"] = title
+                    url_data["raw_content"] = content
+                    url_data["status"] = "Content Extracted"
+                    self.log_update.emit("-> Content extracted successfully.")
             else:
                 self.log_update.emit("-> Type: Unknown or Error")
                 url_data["status"] = "Error"
@@ -184,6 +196,8 @@ class AgentWorker(QThread):
         self.finished.emit(output_path)
 
     def get_content_type(self, url):
+        if 'youtube.com' in url or 'youtu.be' in url:
+            return 'youtube'
         if url.lower().endswith('.pdf'): return 'pdf'
         try:
             res = requests.head(url, headers=self.headers, allow_redirects=True, timeout=10)
@@ -202,6 +216,26 @@ class AgentWorker(QThread):
             content = main.get_text('\n', strip=True) if main else soup.get_text('\n', strip=True)
             return title, content, None
         except requests.RequestException as e: return None, None, str(e)
+
+    def extract_youtube_content(self, url):
+        try:
+            video_id = None
+            if "youtube.com" in url:
+                video_id = url.split("v=")[1].split("&")[0]
+            elif "youtu.be" in url:
+                video_id = url.split("/")[-1]
+
+            if not video_id:
+                return None, None, "Could not extract video ID from URL."
+
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript = " ".join([item["text"] for item in transcript_list])
+            
+            # Since we don't have a title from the transcript, 
+            # we can try to fetch it from the youtube page, or just use the url
+            return f"YouTube Video: {video_id}", transcript, None
+        except Exception as e:
+            return None, None, str(e)
 
     def download_pdf(self, url, folder):
         try:
@@ -296,4 +330,3 @@ if __name__ == "__main__":
     frontend = SnippetAgentFrontend()
     frontend.show()
     sys.exit(app.exec())
-
