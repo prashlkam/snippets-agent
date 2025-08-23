@@ -2,7 +2,7 @@ import sys
 import os
 import time
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets (
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QTextEdit, QPushButton, QProgressBar, QTextBrowser, QMessageBox
 )
