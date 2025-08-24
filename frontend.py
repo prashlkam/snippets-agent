@@ -228,12 +228,19 @@ class AgentWorker(QThread):
             if not video_id:
                 return None, None, "Could not extract video ID from URL."
 
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            transcript = " ".join([item["text"] for item in transcript_list])
-            
-            # Since we don't have a title from the transcript, 
-            # we can try to fetch it from the youtube page, or just use the url
-            return f"YouTube Video: {video_id}", transcript, None
+            # Get transcript
+            transcript_list = YouTubeTranscriptApi().list(video_id)
+            transcript = transcript_list.find_transcript(['en'])
+            transcript_text = " ".join([item.text for item in transcript.fetch()])
+
+            # Scrape title from YouTube page
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, 'html.parser')
+            title = soup.find('meta', property='og:title')
+            title = title['content'] if title else "No Title Found"
+
+            return title, transcript_text, None
         except Exception as e:
             return None, None, str(e)
 

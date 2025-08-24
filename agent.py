@@ -123,9 +123,9 @@ def extract_youtube_content(url):
             return None, None, "Invalid YouTube URL"
 
         # Get transcript
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = YouTubeTranscriptApi().list(video_id)
         transcript = transcript_list.find_transcript(['en'])
-        transcript_text = " ".join([item['text'] for item in transcript.fetch()])
+        transcript_text = " ".join([item.text for item in transcript.fetch()])
 
         # Scrape title from YouTube page
         response = requests.get(url, timeout=15)
@@ -144,6 +144,8 @@ def extract_youtube_content(url):
         return None, None, f"Failed to fetch YouTube page: {e}"
     except Exception as e:
         return None, None, f"An unexpected error occurred: {e}"
+
+
 
 def download_pdf(url, folder):
     """Downloads a PDF from a URL into a specified folder."""
