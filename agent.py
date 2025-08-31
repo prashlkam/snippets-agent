@@ -34,11 +34,18 @@ def get_seo_keywords(title):
     keywords = [word.lower() for word in title.split()[:5]]
     return keywords
 
+from urllib.parse import urlparse, parse_qs
+
 def extract_video_id_from_url(url):
     """Extracts the YouTube video ID from a URL."""
-    regex = r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]*\/|v\/|embed\/|watch\?v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})"
-    match = re.search(regex, url)
-    return match.group(1) if match else None
+    parsed_url = urlparse(url)
+    if "youtube.com" in parsed_url.netloc:
+        query_params = parse_qs(parsed_url.query)
+        if "v" in query_params:
+            return query_params["v"][0]
+    elif "youtu.be" in parsed_url.netloc:
+        return parsed_url.path[1:]
+    return None
 
 def rewrite_summary_with_seo(summary, keywords):
     """Rewrites a summary to include SEO keywords using an LLM."""
@@ -91,9 +98,16 @@ def get_content_type(url):
         content_type = response.headers.get('Content-Type', '').lower()
         if 'application/pdf' in content_type:
             return 'pdf'
+        return 'html'
     except requests.RequestException:
-        return 'error'
-    return 'html'
+        try:
+            response = requests.get(url, stream=True, timeout=10)
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'application/pdf' in content_type:
+                return 'pdf'
+            return 'html'
+        except requests.RequestException:
+            return 'error'
 
 def extract_html_content(url):
     """Fetches and extracts the title and main content from a web page."""

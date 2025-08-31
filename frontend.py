@@ -13,7 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 import PyPDF2
 from docx import Document
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi
 
 import google.generativeai as genai
@@ -198,13 +198,34 @@ class AgentWorker(QThread):
     def get_content_type(self, url):
         if 'youtube.com' in url or 'youtu.be' in url:
             return 'youtube'
-        if url.lower().endswith('.pdf'): return 'pdf'
+        if url.lower().endswith('.pdf'):
+            return 'pdf'
         try:
             res = requests.head(url, headers=self.headers, allow_redirects=True, timeout=10)
             ct = res.headers.get('Content-Type', '').lower()
-            if 'application/pdf' in ct: return 'pdf'
-        except requests.RequestException: return 'error'
-        return 'html'
+            if 'application/pdf' in ct:
+                return 'pdf'
+            return 'html'
+        except requests.RequestException:
+            try:
+                res = requests.get(url, headers=self.headers, stream=True, allow_redirects=True, timeout=10)
+                ct = res.headers.get('Content-Type', '').lower()
+                if 'application/pdf' in ct:
+                    return 'pdf'
+                return 'html'
+            except requests.RequestException:
+                return 'error'
+
+    def extract_video_id_from_url(self, url):
+        """Extracts the YouTube video ID from a URL."""
+        parsed_url = urlparse(url)
+        if "youtube.com" in parsed_url.netloc:
+            query_params = parse_qs(parsed_url.query)
+            if "v" in query_params:
+                return query_params["v"][0]
+        elif "youtu.be" in parsed_url.netloc:
+            return parsed_url.path[1:]
+        return None
 
     def extract_html_content(self, url):
         try:
@@ -219,11 +240,7 @@ class AgentWorker(QThread):
 
     def extract_youtube_content(self, url):
         try:
-            video_id = None
-            if "youtube.com" in url:
-                video_id = url.split("v=")[1].split("&")[0]
-            elif "youtu.be" in url:
-                video_id = url.split("/")[-1]
+            video_id = self.extract_video_id_from_url(url)
 
             if not video_id:
                 return None, None, "Could not extract video ID from URL."
